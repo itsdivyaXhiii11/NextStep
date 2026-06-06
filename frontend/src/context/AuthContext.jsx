@@ -9,19 +9,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) fetchProfile()
-      else setLoading(false)
-    })
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) fetchProfile()
-      else { setUser(null); setLoading(false) }
-    })
-
-    return () => subscription.unsubscribe()
+    const token = localStorage.getItem('token')
+    if (token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      fetchProfile()
+    } else {
+      setLoading(false)
+    }
   }, [])
 
   async function fetchProfile() {
@@ -30,6 +24,7 @@ export function AuthProvider({ children }) {
       setUser(data.user)
     } catch {
       setUser(null)
+      localStorage.removeItem('token')
     } finally {
       setLoading(false)
     }
@@ -37,11 +32,15 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     const { data } = await api.post('/auth/login', { email, password })
+    localStorage.setItem('token', data.token)
+    api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
     setUser(data.user)
     return data.user
   }
 
   async function logout() {
+    localStorage.removeItem('token')
+    delete api.defaults.headers.common['Authorization']
     await supabase.auth.signOut()
     setUser(null)
   }
